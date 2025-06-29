@@ -16,22 +16,55 @@ use Symfony\Component\Routing\Annotation\Route;
 class AppointmentController extends AbstractController
 {
     #[Route('', methods: ['GET'])]
-    public function index(AppointmentRepository $repo): JsonResponse
+    public function index(Request $request, AppointmentRepository $repo): JsonResponse
     {
-        $appointments = $repo->findAll();
-        $data = [];
+        $appointmentDate = $request->query->get('appointmentDate');
+        $patientId = $request->query->getInt('patient_id');
+        $doctorId = $request->query->getInt('doctor_id');
+        $notes = $request->query->get('notes');
+        $itemsPerPage = $request->query->getInt('itemsPerPage', 10);
+        $page = $request->query->getInt('page', 1);
 
-        foreach ($appointments as $app) {
+        $qb = $repo->createQueryBuilder('a');
+
+        if ($appointmentDate) {
+            $qb->andWhere('a.appointmentDate = :date')
+                ->setParameter('date', new \DateTime($appointmentDate));
+        }
+        if ($patientId) {
+            $qb->andWhere('a.patient = :pid')
+                ->setParameter('pid', $patientId);
+        }
+        if ($doctorId) {
+            $qb->andWhere('a.doctor = :did')
+                ->setParameter('did', $doctorId);
+        }
+        if ($notes) {
+            $qb->andWhere('a.notes LIKE :notes')
+                ->setParameter('notes', "%$notes%");
+        }
+
+        $qb->setFirstResult(($page - 1) * $itemsPerPage)
+            ->setMaxResults($itemsPerPage);
+
+        $appointments = $qb->getQuery()->getResult();
+
+        $data = [];
+        foreach ($appointments as $a) {
             $data[] = [
-                'id' => $app->getId(),
-                'patient' => $app->getPatient()->getId(),
-                'doctor' => $app->getDoctor()->getId(),
-                'appointmentDate' => $app->getAppointmentDate()->format('Y-m-d'),
-                'notes' => $app->getNotes(),
+                'id' => $a->getId(),
+                'appointmentDate' => $a->getAppointmentDate()->format('Y-m-d'),
+                'patient' => $a->getPatient()->getId(),
+                'doctor' => $a->getDoctor()->getId(),
+                'notes' => $a->getNotes(),
             ];
         }
 
-        return $this->json($data);
+        return $this->json([
+            'page' => $page,
+            'itemsPerPage' => $itemsPerPage,
+            'data' => $data,
+        ]);
     }
 
     #[Route('', methods: ['POST'])]

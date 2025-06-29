@@ -9,9 +9,26 @@ use Illuminate\Http\Request;
 
 class PatientController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return Patient::all();
+        $query = Patient::query();
+
+        if ($request->filled('name')) {
+            $query->where('name', 'like', '%'.$request->name.'%');
+        }
+        if ($request->filled('gender')) {
+            $query->where('gender', $request->gender);
+        }
+        if ($request->filled('date_of_birth')) {
+            $query->whereDate('date_of_birth', $request->date_of_birth);
+        }
+        if ($request->filled('contact_info')) {
+            $query->where('contact_info', 'like', '%'.$request->contact_info.'%');
+        }
+
+        $perPage = $request->input('itemsPerPage', 10);
+
+        return $query->paginate($perPage);
     }
 
     public function store(Request $request)

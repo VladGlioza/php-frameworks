@@ -7,9 +7,26 @@ use Illuminate\Http\Request;
 
 class DoctorController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return Doctor::all();
+        $query = Doctor::query();
+
+        if ($request->filled('name')) {
+            $query->where('name', 'like', '%'.$request->name.'%');
+        }
+        if ($request->filled('specialty')) {
+            $query->where('specialty', 'like', '%'.$request->specialty.'%');
+        }
+        if ($request->filled('phone')) {
+            $query->where('phone', 'like', '%'.$request->phone.'%');
+        }
+        if ($request->filled('email')) {
+            $query->where('email', 'like', '%'.$request->email.'%');
+        }
+
+        $perPage = $request->input('itemsPerPage', 10);
+
+        return $query->paginate($perPage);
     }
 
     public function store(Request $request)

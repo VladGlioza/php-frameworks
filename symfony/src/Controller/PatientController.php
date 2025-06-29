@@ -14,22 +14,56 @@ use Symfony\Component\Routing\Annotation\Route;
 class PatientController extends AbstractController
 {
     #[Route('', methods: ['GET'])]
-    public function index(PatientRepository $patientRepository): JsonResponse
+    public function index(Request $request, PatientRepository $repo): JsonResponse
     {
-        $patients = $patientRepository->findAll();
-        $data = [];
+        $name = $request->query->get('name');
+        $gender = $request->query->get('gender');
+        $dateOfBirth = $request->query->get('dateOfBirth');
+        $contactInfo = $request->query->get('contactInfo');
 
-        foreach ($patients as $patient) {
+        $itemsPerPage = $request->query->getInt('itemsPerPage', 10);
+        $page = $request->query->getInt('page', 1);
+
+        $qb = $repo->createQueryBuilder('p');
+
+        if ($name) {
+            $qb->andWhere('p.name LIKE :name')
+                ->setParameter('name', '%' . $name . '%');
+        }
+        if ($gender) {
+            $qb->andWhere('p.gender = :gender')
+                ->setParameter('gender', $gender);
+        }
+        if ($dateOfBirth) {
+            $qb->andWhere('p.dateOfBirth = :dob')
+                ->setParameter('dob', new \DateTime($dateOfBirth));
+        }
+        if ($contactInfo) {
+            $qb->andWhere('p.contactInfo LIKE :contact')
+                ->setParameter('contact', '%' . $contactInfo . '%');
+        }
+
+        $qb->setFirstResult(($page - 1) * $itemsPerPage)
+            ->setMaxResults($itemsPerPage);
+
+        $patients = $qb->getQuery()->getResult();
+
+        $data = [];
+        foreach ($patients as $p) {
             $data[] = [
-                'id' => $patient->getId(),
-                'name' => $patient->getName(),
-                'dateOfBirth' => $patient->getDateOfBirth()->format('Y-m-d'),
-                'gender' => $patient->getGender(),
-                'contactInfo' => $patient->getContactInfo(),
+                'id' => $p->getId(),
+                'name' => $p->getName(),
+                'gender' => $p->getGender(),
+                'dateOfBirth' => $p->getDateOfBirth()->format('Y-m-d'),
+                'contactInfo' => $p->getContactInfo(),
             ];
         }
 
-        return $this->json($data);
+        return $this->json([
+            'page' => $page,
+            'itemsPerPage' => $itemsPerPage,
+            'data' => $data,
+        ]);
     }
 
     #[Route('', methods: ['POST'])]

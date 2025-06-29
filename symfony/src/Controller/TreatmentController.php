@@ -15,22 +15,55 @@ use Symfony\Component\Routing\Annotation\Route;
 class TreatmentController extends AbstractController
 {
     #[Route('', methods: ['GET'])]
-    public function index(TreatmentRepository $repo): JsonResponse
+    public function index(Request $request, TreatmentRepository $repo): JsonResponse
     {
-        $treatments = $repo->findAll();
-        $data = [];
+        $treatmentPlan = $request->query->get('treatmentPlan');
+        $startDate = $request->query->get('startDate');
+        $endDate = $request->query->get('endDate');
+        $diagnosisId = $request->query->getInt('diagnosis_id');
+        $itemsPerPage = $request->query->getInt('itemsPerPage', 10);
+        $page = $request->query->getInt('page', 1);
 
-        foreach ($treatments as $treatment) {
+        $qb = $repo->createQueryBuilder('t');
+
+        if ($treatmentPlan) {
+            $qb->andWhere('t.treatmentPlan LIKE :plan')
+                ->setParameter('plan', "%$treatmentPlan%");
+        }
+        if ($startDate) {
+            $qb->andWhere('t.startDate = :start')
+                ->setParameter('start', new \DateTime($startDate));
+        }
+        if ($endDate) {
+            $qb->andWhere('t.endDate = :end')
+                ->setParameter('end', new \DateTime($endDate));
+        }
+        if ($diagnosisId) {
+            $qb->andWhere('t.diagnosis = :did')
+                ->setParameter('did', $diagnosisId);
+        }
+
+        $qb->setFirstResult(($page - 1) * $itemsPerPage)
+            ->setMaxResults($itemsPerPage);
+
+        $treatments = $qb->getQuery()->getResult();
+
+        $data = [];
+        foreach ($treatments as $t) {
             $data[] = [
-                'id' => $treatment->getId(),
-                'diagnosis' => $treatment->getDiagnosis()?->getId(),
-                'treatmentPlan' => $treatment->getTreatmentPlan(),
-                'startDate' => $treatment->getStartDate()->format('Y-m-d'),
-                'endDate' => $treatment->getEndDate()?->format('Y-m-d'),
+                'id' => $t->getId(),
+                'treatmentPlan' => $t->getTreatmentPlan(),
+                'startDate' => $t->getStartDate()->format('Y-m-d'),
+                'endDate' => $t->getEndDate()?->format('Y-m-d'),
+                'diagnosis' => $t->getDiagnosis()?->getId(),
             ];
         }
 
-        return $this->json($data);
+        return $this->json([
+            'page' => $page,
+            'itemsPerPage' => $itemsPerPage,
+            'data' => $data,
+        ]);
     }
 
     #[Route('', methods: ['POST'])]

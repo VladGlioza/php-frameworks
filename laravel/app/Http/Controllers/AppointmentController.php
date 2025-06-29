@@ -7,9 +7,26 @@ use Illuminate\Http\Request;
 
 class AppointmentController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return Appointment::with(['patient', 'doctor'])->get();
+        $query = Appointment::with(['patient', 'doctor']);
+
+        if ($request->filled('appointment_date')) {
+            $query->whereDate('appointment_date', $request->appointment_date);
+        }
+        if ($request->filled('patient_id')) {
+            $query->where('patient_id', $request->patient_id);
+        }
+        if ($request->filled('doctor_id')) {
+            $query->where('doctor_id', $request->doctor_id);
+        }
+        if ($request->filled('notes')) {
+            $query->where('notes', 'like', '%'.$request->notes.'%');
+        }
+
+        $perPage = $request->input('itemsPerPage', 10);
+
+        return $query->paginate($perPage);
     }
 
     public function store(Request $request)

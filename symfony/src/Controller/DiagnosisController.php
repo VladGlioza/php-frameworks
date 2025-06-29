@@ -16,22 +16,55 @@ use Symfony\Component\Routing\Annotation\Route;
 class DiagnosisController extends AbstractController
 {
     #[Route('', methods: ['GET'])]
-    public function index(DiagnosisRepository $repo): JsonResponse
+    public function index(Request $request, DiagnosisRepository $repo): JsonResponse
     {
-        $diagnoses = $repo->findAll();
-        $data = [];
+        $diagnosisText = $request->query->get('diagnosisText');
+        $diagnosisDate = $request->query->get('diagnosisDate');
+        $patientId = $request->query->getInt('patient_id');
+        $doctorId = $request->query->getInt('doctor_id');
+        $itemsPerPage = $request->query->getInt('itemsPerPage', 10);
+        $page = $request->query->getInt('page', 1);
 
-        foreach ($diagnoses as $diag) {
+        $qb = $repo->createQueryBuilder('d');
+
+        if ($diagnosisText) {
+            $qb->andWhere('d.diagnosisText LIKE :text')
+                ->setParameter('text', "%$diagnosisText%");
+        }
+        if ($diagnosisDate) {
+            $qb->andWhere('d.diagnosisDate = :date')
+                ->setParameter('date', new \DateTime($diagnosisDate));
+        }
+        if ($patientId) {
+            $qb->andWhere('d.patient = :pid')
+                ->setParameter('pid', $patientId);
+        }
+        if ($doctorId) {
+            $qb->andWhere('d.doctor = :did')
+                ->setParameter('did', $doctorId);
+        }
+
+        $qb->setFirstResult(($page - 1) * $itemsPerPage)
+            ->setMaxResults($itemsPerPage);
+
+        $diagnoses = $qb->getQuery()->getResult();
+
+        $data = [];
+        foreach ($diagnoses as $d) {
             $data[] = [
-                'id' => $diag->getId(),
-                'patient' => $diag->getPatient()->getId(),
-                'doctor' => $diag->getDoctor()->getId(),
-                'diagnosisText' => $diag->getDiagnosisText(),
-                'diagnosisDate' => $diag->getDiagnosisDate()->format('Y-m-d'),
+                'id' => $d->getId(),
+                'diagnosisText' => $d->getDiagnosisText(),
+                'diagnosisDate' => $d->getDiagnosisDate()->format('Y-m-d'),
+                'patient' => $d->getPatient()->getId(),
+                'doctor' => $d->getDoctor()->getId(),
             ];
         }
 
-        return $this->json($data);
+        return $this->json([
+            'page' => $page,
+            'itemsPerPage' => $itemsPerPage,
+            'data' => $data,
+        ]);
     }
 
     #[Route('', methods: ['POST'])]

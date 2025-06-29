@@ -14,22 +14,55 @@ use Symfony\Component\Routing\Annotation\Route;
 class DoctorController extends AbstractController
 {
     #[Route('', methods: ['GET'])]
-    public function index(DoctorRepository $repo): JsonResponse
+    public function index(Request $request, DoctorRepository $repo): JsonResponse
     {
-        $doctors = $repo->findAll();
-        $data = [];
+        $name = $request->query->get('name');
+        $specialty = $request->query->get('specialty');
+        $phone = $request->query->get('phone');
+        $email = $request->query->get('email');
+        $itemsPerPage = $request->query->getInt('itemsPerPage', 10);
+        $page = $request->query->getInt('page', 1);
 
-        foreach ($doctors as $doctor) {
+        $qb = $repo->createQueryBuilder('d');
+
+        if ($name) {
+            $qb->andWhere('d.name LIKE :name')
+                ->setParameter('name', "%$name%");
+        }
+        if ($specialty) {
+            $qb->andWhere('d.specialty LIKE :spec')
+                ->setParameter('spec', "%$specialty%");
+        }
+        if ($phone) {
+            $qb->andWhere('d.phone LIKE :phone')
+                ->setParameter('phone', "%$phone%");
+        }
+        if ($email) {
+            $qb->andWhere('d.email LIKE :email')
+                ->setParameter('email', "%$email%");
+        }
+
+        $qb->setFirstResult(($page - 1) * $itemsPerPage)
+            ->setMaxResults($itemsPerPage);
+
+        $doctors = $qb->getQuery()->getResult();
+
+        $data = [];
+        foreach ($doctors as $d) {
             $data[] = [
-                'id' => $doctor->getId(),
-                'name' => $doctor->getName(),
-                'specialty' => $doctor->getSpecialty(),
-                'phone' => $doctor->getPhone(),
-                'email' => $doctor->getEmail(),
+                'id' => $d->getId(),
+                'name' => $d->getName(),
+                'specialty' => $d->getSpecialty(),
+                'phone' => $d->getPhone(),
+                'email' => $d->getEmail(),
             ];
         }
 
-        return $this->json($data);
+        return $this->json([
+            'page' => $page,
+            'itemsPerPage' => $itemsPerPage,
+            'data' => $data,
+        ]);
     }
 
     #[Route('', methods: ['POST'])]
